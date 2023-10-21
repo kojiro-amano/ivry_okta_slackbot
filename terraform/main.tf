@@ -1,5 +1,5 @@
 terraform {
-  required_version = "1.2.6"
+  required_version = ">=1.2.6"
   backend "s3" {
     bucket         = "stg-okta-slackbot-terraform-state"
     key            = "terraform.tfstate"
