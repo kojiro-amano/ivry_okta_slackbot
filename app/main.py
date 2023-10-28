@@ -141,7 +141,7 @@ def mention_handler(body, say):
 SlackRequestHandler.clear_all_log_handlers()
 logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
 
-## １行変更
+## test変更変更
 
 def lambda_handler(event, context):
     slack_handler = SlackRequestHandler(app=app)

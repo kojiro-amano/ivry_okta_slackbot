@@ -34,12 +34,12 @@ jobs:
       - name: find changed for app dir
         id: changedApp
         run: |
-          changed_num=`git diff --numstat HEAD ${base_branch} -- ./modules | wc -l`
+          changed_num=`git diff --numstat HEAD ${base_branch} -- ./app | wc -l`
           if [ ${changed_num} -ne 0 ];then
-            echo "some differences are included"
+            echo "some differences are included in app dir"
             echo "is_app_changed=true" >> $GITHUB_OUTPUT
           else
-            echo "no difference"
+            echo "no difference in app dir"
             echo "is_app_changed=false" >> $GITHUB_OUTPUT
           fi
       
