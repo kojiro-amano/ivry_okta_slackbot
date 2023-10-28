@@ -1,0 +1,135 @@
+name: stg
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+
+env:
+  base_branch: main
+  REGISTRY_ID: 895663540920
+  AWS_REGION: ap-northeast-1
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+            terraform_version: 1.3.9
+            terraform_wrapper: false
+    
+      - name: Fetch base branch
+        run: git fetch origin ${base_branch}:${base_branch}
+
+      - name: find changed for app dir
+        id: changedApp
+        run: |
+          changed_num=`git diff --numstat HEAD ${base_branch} -- ./app | wc -l`
+          if [ ${changed_num} -ne 0 ];then
+            echo "some differences are included in app dir"
+            echo "is_app_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "no difference in app dir"
+            echo "is_app_changed=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: chack image tag
+        id: imageTag
+        run: |
+          . app/ecr.env
+          if aws ecr describe-images --registry-id ${REGISTRY_ID} --region ${AWS_REGION} --repository-name stg-okta-slackbot --image-ids=imageTag=${TAG} >/dev/null 2>&1;then
+            echo "Specified tag ${TAG} already exists in staging ecr. Use another tag for development"
+            echo "has_image_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "Specified tag ${TAG} didn't exists in staging ecr"
+            echo "has_image_tag=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Terraform Init
+        id: init
+        run: |
+          cd terraform
+          terraform init
+        
+      - name: Terraform Validate
+        id: validate
+        run: |
+          cd terraform
+          terraform validate -no-color
+      
+      - name: Terraform Plan
+        id: plan
+        run: |
+          cd terraform
+          terraform plan -var "ImageTag=${TAG}" -out=plan.tmp
+          terraform show -no-color plan.tmp >${GITHUB_WORKSPACE}/plan.out
+        continue-on-error: true
+      
+      # - name: Export Terraform Plan to Pull Request Comment
+      #   uses: actions/github-script@v6
+      #   with:
+      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      #     script: |
+      #       // https://github.com/actions/github-script/issues/266
+      #       const run_url = process.env.GITHUB_SERVER_URL + '/' + process.env.GITHUB_REPOSITORY + '/actions/runs/' + process.env.GITHUB_RUN_ID
+      #       const run_link = '<a href="' + run_url + '">Actions</a>.'
+      #       const fs = require('fs')
+      #       const plan_file = fs.readFileSync('plan.out', 'utf8')
+      #       const plan = plan_file.length > 65000 ? "..." + plan_file.toString().slice(-65000) : plan_file
+      #       const truncated_message = plan_file.length > 65000 ? "Output is too long and was truncated. You can read full Plan in " + run_link + "<br /><br />" : ""
+      #       const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+      #       #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+      #       #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+      #       #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+
+      #       <details><summary>Show Plan for Staging</summary>
+    
+      #       \`\`\`\n
+      #       ${plan}
+      #       \`\`\`
+
+      #       </details>
+      #       ${truncated_message}
+      
+      #       *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+      
+      #       github.rest.issues.createComment({
+      #         issue_number: context.issue.number,
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         body: output
+      #       })
+      - name: Check Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+    outputs:
+      output1: ${{ steps.changedApp.outputs.is_app_changed }}
+      output2: ${{ steps.imageTag.outputs.has_image_tag }}
+  cd:
+    runs-on: ubuntu-20.04
+    needs: ci
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: build & push container image
+        run: |
+          if [ ${{ needs.ci.outputs.output1 }} = "true" ] && [ ${{ needs.ci.outputs.output2 }} = "false" ];then
+            . app/ecr.env
+            ecr_uri="${REGISTRY_ID}.dkr.ecr.ap-northeast-1.amazonaws.com"
+            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ecr_uri}
+            docker build -t stg-okta-slackbot ./app
+            docker tag stg-okta-slackbotlatest ${ecr_uri}/stg-okta-slackbot:${TAG}
+            docker push ${ecr_uri}/stg-okta-slackbot:${TAG}
+          fi
+      
+      - name: Terraform Apply
+        run: cd terraformg && terraform apply -auto-approve -input=false -lock-timeout=120s -var "ImageTag=${TAG}"
