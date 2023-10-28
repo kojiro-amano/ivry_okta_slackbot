@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  base_branch: main
+  BASE_BRANCH: main
   REGISTRY_ID: 895663540920
   AWS_REGION: ap-northeast-1
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -29,12 +29,12 @@ jobs:
             terraform_wrapper: false
     
       - name: Fetch base branch
-        run: git fetch origin ${base_branch}:${base_branch}
+        run: git fetch origin ${BASE_BRANCH}:${BASE_BRANCH}
 
       - name: find changed for app dir
         id: changedApp
         run: |
-          changed_num=`git diff --numstat HEAD ${base_branch} -- ./app | wc -l`
+          changed_num=`git diff --numstat ${TARGET_BRANCH} ${BASE_BRANCH} -- ./app | wc -l`
           if [ ${changed_num} -ne 0 ];then
             echo "some differences are included in app dir"
             echo "is_app_changed=true" >> $GITHUB_OUTPUT
@@ -42,6 +42,8 @@ jobs:
             echo "no difference in app dir"
             echo "is_app_changed=false" >> $GITHUB_OUTPUT
           fi
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.sha }}
       
       - name: chack image tag
         id: imageTag
