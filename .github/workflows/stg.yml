@@ -34,6 +34,7 @@ jobs:
       - name: find changed for app dir
         id: changedApp
         run: |
+          echo ${BASE_BRANCH}
           changed_num=`git diff --numstat ${TARGET_BRANCH} ${BASE_BRANCH#origin/} -- ./app | wc -l`
           if [ ${changed_num} -ne 0 ];then
             echo "some differences are included in app dir"
