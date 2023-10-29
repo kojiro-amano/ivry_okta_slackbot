@@ -19,7 +19,7 @@ jobs:
       - name: checkout
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Setup Terraform
@@ -29,14 +29,24 @@ jobs:
             terraform_wrapper: false
     
       - name: Fetch base branch when pr is merged
+        if: github.event.pull_request.merged == true
         run: |
-          BASE_COMMIT="origin/${{ github.base_ref }}"
-          git fetch origin "${BASE_COMMIT#origin/}"
+          BASE_COMMIT=${{ github.base_ref }}
+          git fetch origin ${BASE_COMMIT}
 
+      - name: Fetch base branch when pr is opened and synchronized
+        if: github.event.pull_request.merged != true
+        run: |
+          if [ ${{ github.event.before }} != "0000000000000000000000000000000000000000" ];then
+            BASE_COMMIT=${{ github.event.before }}
+          else
+            BASE_COMMIT="origin/${{ github.event.repository.default_branch }}"
+            git fetch origin "${BASE_COMMIT#origin/}"
+    
       - name: find changed for app dir
         id: changedApp
         run: |
-          changed_num=`git diff --numstat ${TARGET_COMMIT} ${BASE_COMMIT} -- ./app | wc -l`
+          changed_num=`git diff --numstat ${BASE_COMMIT} ${TARGET_COMMIT} -- ./app | wc -l`
           if [ ${changed_num} -ne 0 ];then
             echo "some differences are included in app dir"
             echo "is_app_changed=true" >> $GITHUB_OUTPUT
@@ -45,7 +55,7 @@ jobs:
             echo "is_app_changed=false" >> $GITHUB_OUTPUT
           fi
         env:
-          TARGET_COMMIT: ${{ github.event.pull_request.head.sha }}
+          TARGET_COMMIT: ${{ github.sha }}
       
       - name: chack image tag
         id: imageTag
