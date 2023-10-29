@@ -2,11 +2,7 @@ name: stg
 
 on:
   workflow_dispatch:
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
   push:
-      branches:
-        - main
 
 env:
   REGISTRY_ID: 895663540920
@@ -31,14 +27,14 @@ jobs:
             terraform_wrapper: false
     
       - name: Fetch base branch when pr is merged
-        if: github.event.pull_request.merged == true
+        if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           git fetch --depth=2 origin ${{ github.base_ref }}
           BASE_COMMIT=${{ github.event.before }}
           echo "BASE_COMMIT=${BASE_COMMIT}" >> "${GITHUB_ENV}"
 
       - name: Fetch base branch when pr is opened and synchronized
-        if: github.event.pull_request.merged != true
+        if: ${{ github.ref != 'refs/heads/main' }}
         run: |
           if [ ${{ github.event.before }} != "0000000000000000000000000000000000000000" ];then
             BASE_COMMIT=${{ github.event.before }}
@@ -135,7 +131,7 @@ jobs:
         run: exit 1
 
       - name: build & push container image
-        if: github.event.pull_request.merged == true
+        if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           if [ ${is_app_changed} = "true" ] && [ ${has_image_tag} = "false" ];then
             echo "App modules are pushed to ecr"
@@ -150,7 +146,7 @@ jobs:
           fi
       
       - name: Terraform Apply
-        if: github.event.pull_request.merged == true
+        if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           cd terraform
           terraform apply -auto-approve -input=false -lock-timeout=120s -var "ImageTag=${TAG}"
