@@ -35,6 +35,7 @@ jobs:
         run: |
           BASE_COMMIT=${{ github.base_ref }}
           git fetch origin ${BASE_COMMIT}
+          echo "BASE_COMMIT=${BASE_COMMIT}" >> "${GITHUB_ENV}"
 
       - name: Fetch base branch when pr is opened and synchronized
         if: github.event.pull_request.merged != true
@@ -45,6 +46,7 @@ jobs:
             BASE_COMMIT="origin/${{ github.event.repository.default_branch }}"
             git fetch origin "${BASE_COMMIT#origin/}"
           fi
+          echo "BASE_COMMIT=${BASE_COMMIT}" >> "${GITHUB_ENV}"
     
       - name: find changed for app dir
         id: changedApp
