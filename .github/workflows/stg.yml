@@ -15,7 +15,7 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
-  ci:
+  cicd:
     runs-on: ubuntu-20.04
     steps:
       - name: checkout
@@ -33,8 +33,8 @@ jobs:
       - name: Fetch base branch when pr is merged
         if: github.event.pull_request.merged == true
         run: |
-          BASE_COMMIT=${{ github.base_ref }}
-          git fetch origin ${BASE_COMMIT}
+          BASE_COMMIT="origin/${{ github.base_ref }}"
+          git fetch origin ${BASE_COMMIT#origin/}
           echo "BASE_COMMIT=${BASE_COMMIT}" >> "${GITHUB_ENV}"
 
       - name: Fetch base branch when pr is opened and synchronized
@@ -56,10 +56,10 @@ jobs:
           changed_num=`git diff --numstat ${BASE_COMMIT} ${TARGET_COMMIT} -- ./app | wc -l`
           if [ ${changed_num} -ne 0 ];then
             echo "some differences are included in app dir"
-            echo "is_app_changed=true" >> $GITHUB_OUTPUT
+            echo "is_app_changed=true" >> "${GITHUB_ENV}"
           else
             echo "no difference in app dir"
-            echo "is_app_changed=false" >> $GITHUB_OUTPUT
+            echo "is_app_changed=false" >> "${GITHUB_ENV}"
           fi
         env:
           TARGET_COMMIT: ${{ github.sha }}
@@ -70,10 +70,10 @@ jobs:
           . app/ecr.env
           if aws ecr describe-images --registry-id ${REGISTRY_ID} --region ${AWS_REGION} --repository-name stg-okta-slackbot --image-ids=imageTag=${TAG} >/dev/null 2>&1;then
             echo "Specified tag ${TAG} already exists in staging ecr. Use another tag for development"
-            echo "has_image_tag=true" >> $GITHUB_OUTPUT
+            echo "has_image_tag=true" >> "${GITHUB_ENV}"
           else
             echo "Specified tag ${TAG} didn't exists in staging ecr"
-            echo "has_image_tag=false" >> $GITHUB_OUTPUT
+            echo "has_image_tag=false" >> "${GITHUB_ENV}"
           fi
 
       - name: Terraform Init
@@ -133,17 +133,11 @@ jobs:
       - name: Check Terraform Plan Status
         if: steps.plan.outcome == 'failure'
         run: exit 1
-    outputs:
-      output1: ${{ steps.changedApp.outputs.is_app_changed }}
-      output2: ${{ steps.imageTag.outputs.has_image_tag }}
-  cd:
-    runs-on: ubuntu-20.04
-    needs: ci
-    if: github.event.pull_request.merged == true
-    steps:
+
       - name: build & push container image
+        if: github.event.pull_request.merged == true
         run: |
-          if [ ${{ needs.ci.outputs.output1 }} = "true" ] && [ ${{ needs.ci.outputs.output2 }} = "false" ];then
+          if [ ${is_app_changed} = "true" ] && [ ${has_image_tag} = "false" ];then
             echo "App modules are pushed to ecr"
             . app/ecr.env
             ecr_uri="${REGISTRY_ID}.dkr.ecr.ap-northeast-1.amazonaws.com"
@@ -156,6 +150,7 @@ jobs:
           fi
       
       - name: Terraform Apply
+        if: github.event.pull_request.merged == true
         run: |
           cd terraform
           terraform apply -auto-approve -input=false -lock-timeout=120s -var "ImageTag=${TAG}"
