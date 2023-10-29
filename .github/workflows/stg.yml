@@ -42,6 +42,7 @@ jobs:
           else
             BASE_COMMIT="origin/${{ github.event.repository.default_branch }}"
             git fetch origin "${BASE_COMMIT#origin/}"
+          fi
     
       - name: find changed for app dir
         id: changedApp
