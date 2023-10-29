@@ -33,7 +33,7 @@ jobs:
       - name: Fetch base branch when pr is merged
         if: github.event.pull_request.merged == true
         run: |
-          git fetch --depth=0 origin ${{ github.base_ref }}
+          git fetch --depth=1 origin ${{ github.base_ref }}
           BASE_COMMIT=${{ github.event.before }}
           echo "BASE_COMMIT=${BASE_COMMIT}" >> "${GITHUB_ENV}"
 
