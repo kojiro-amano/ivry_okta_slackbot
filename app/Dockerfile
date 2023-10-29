@@ -11,7 +11,7 @@ ENV PATH /opt/poetry/bin:$PATH
 RUN poetry config virtualenvs.create false
 
 COPY pyproject.toml poetry.lock ./
-COPY app ./
 RUN poetry install
 
+COPY app/ ./app
 CMD ["main.lambda_handler"]
