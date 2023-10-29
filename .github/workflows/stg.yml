@@ -49,6 +49,8 @@ jobs:
       - name: find changed for app dir
         id: changedApp
         run: |
+          echo "BASE_COMMIT"
+          echo "TARGET_COMMIT"
           changed_num=`git diff --numstat ${BASE_COMMIT} ${TARGET_COMMIT} -- ./app | wc -l`
           if [ ${changed_num} -ne 0 ];then
             echo "some differences are included in app dir"
