@@ -30,7 +30,7 @@ jobs:
       - name: Fetch base branch when pr is merged
         run: |
           BASE_COMMIT= "origin/${{ github.base_ref }}"
-          git fetch origin ${BASE_COMMIT#origin}
+          git fetch origin "${BASE_COMMIT#origin/}"
 
       - name: find changed for app dir
         id: changedApp
