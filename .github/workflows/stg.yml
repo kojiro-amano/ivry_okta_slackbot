@@ -6,7 +6,7 @@ on:
     types: [opened, synchronize, reopened, closed]
   push:
       branches:
-        - master
+        - main
 
 env:
   REGISTRY_ID: 895663540920
