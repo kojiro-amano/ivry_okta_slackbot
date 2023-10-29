@@ -4,10 +4,11 @@ on:
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    branches: [main]
+  push:
+      branches:
+        - master
 
 env:
-  BASE_BRANCH: main
   REGISTRY_ID: 895663540920
   AWS_REGION: ap-northeast-1
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -20,7 +21,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -28,13 +30,30 @@ jobs:
             terraform_version: 1.3.9
             terraform_wrapper: false
     
-      - name: Fetch base branch
-        run: git fetch origin ${BASE_BRANCH}:${BASE_BRANCH}
+      - name: Fetch base branch when pr is merged
+        if: github.event.pull_request.merged == true
+        run: |
+          BASE_COMMIT=${{ github.base_ref }}
+          git fetch origin ${BASE_COMMIT}
+          echo "BASE_COMMIT=${BASE_COMMIT}" >> "${GITHUB_ENV}"
 
+      - name: Fetch base branch when pr is opened and synchronized
+        if: github.event.pull_request.merged != true
+        run: |
+          if [ ${{ github.event.before }} != "0000000000000000000000000000000000000000" ];then
+            BASE_COMMIT=${{ github.event.before }}
+          else
+            BASE_COMMIT="origin/${{ github.event.repository.default_branch }}"
+            git fetch origin "${BASE_COMMIT#origin/}"
+          fi
+          echo "BASE_COMMIT=${BASE_COMMIT}" >> "${GITHUB_ENV}"
+    
       - name: find changed for app dir
         id: changedApp
         run: |
-          changed_num=`git diff --numstat ${TARGET_BRANCH} ${BASE_BRANCH} -- ./app | wc -l`
+          echo "${BASE_COMMIT}"
+          echo "${TARGET_COMMIT}"
+          changed_num=`git diff --numstat ${BASE_COMMIT} ${TARGET_COMMIT} -- ./app | wc -l`
           if [ ${changed_num} -ne 0 ];then
             echo "some differences are included in app dir"
             echo "is_app_changed=true" >> $GITHUB_OUTPUT
@@ -43,7 +62,7 @@ jobs:
             echo "is_app_changed=false" >> $GITHUB_OUTPUT
           fi
         env:
-          TARGET_BRANCH: ${{ github.event.pull_request.head.sha }}
+          TARGET_COMMIT: ${{ github.sha }}
       
       - name: chack image tag
         id: imageTag
@@ -137,4 +156,6 @@ jobs:
           fi
       
       - name: Terraform Apply
-        run: cd terraform && terraform apply -auto-approve -input=false -lock-timeout=120s -var "ImageTag=${TAG}"
+        run: |
+          cd terraform
+          terraform apply -auto-approve -input=false -lock-timeout=120s -var "ImageTag=${TAG}"
