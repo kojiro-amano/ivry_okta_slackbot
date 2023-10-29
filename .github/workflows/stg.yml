@@ -33,8 +33,8 @@ jobs:
       - name: Fetch base branch when pr is merged
         if: github.event.pull_request.merged == true
         run: |
-          BASE_COMMIT="origin/${{ github.base_ref }}"
-          # git fetch origin ${BASE_COMMIT#origin/}
+          git fetch origin ${{ github.base_ref }}
+          BASE_COMMIT=${{ github.event.before }}
           echo "BASE_COMMIT=${BASE_COMMIT}" >> "${GITHUB_ENV}"
 
       - name: Fetch base branch when pr is opened and synchronized
