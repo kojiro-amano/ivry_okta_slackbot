@@ -4,7 +4,9 @@ on:
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    branches: [main]
+  push:
+      branches:
+        - master
 
 env:
   REGISTRY_ID: 895663540920
